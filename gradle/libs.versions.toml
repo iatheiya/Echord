@@ -30,7 +30,7 @@ kotlin_compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "ko
 kotlin_parcelize = { id = "org.jetbrains.kotlin.plugin.parcelize", version.ref = "kotlin" }
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
 detekt = { id = "io.gitlab.arturbosch.detekt", version.ref = "detekt" }
-chaquo = { id = "com.chaquo.python", version = "16.1.0" }
+chaquo = { id = "com.chaquo.python", version = "17.0.0" }
 
 # NOTE: UniFFI Gradle plugin was removed from this catalog because org.mozilla.uniffi.android
 # is not resolvable as a Gradle plugin artifact. Use UniFFI via Cargo/Rust integration instead.
