@@ -1,0 +1,370 @@
+name: ya
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+    branches: [master, main]
+  workflow_dispatch:
+
+env:
+  TERMUX_SKIP_BOOTSTRAP_DOWNLOAD: '0'
+  JAVA_VERSION: '21'
+  API_LEVEL: '35'
+  ANDROID_TARGET: 'google_apis'
+  ANDROID_ARCH: 'x86_64'
+  AVD_NAME: 'ci_optimized'
+  EMU_BOOT_TIMEOUT_SEC: '900'
+  EMU_WAIT_FOR_DEVICE_SEC: '900'
+  ANDROID_BUILD_TOOLS_VERSION: '35.0.0'
+  MIN_FREE_KB: '10000000'
+  GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.jvmargs=-Xmx4g -XX:+UseParallelGC"
+
+jobs:
+  diagnostics:
+    name: diagnostics
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+      - name: Pre-accept Android Licenses
+        run: |
+          mkdir -p $HOME/.android
+          touch $HOME/.android/repositories.cfg
+          sudo mkdir -p /usr/local/lib/android/sdk/licenses
+          sudo chmod 777 /usr/local/lib/android/sdk/licenses
+          echo "24333f8a63b6825ea9c5514f83c2829b004d1fee" > /usr/local/lib/android/sdk/licenses/android-sdk-license
+          echo "84831b9409646a918e30573bab4c9c91346d8abd" > /usr/local/lib/android/sdk/licenses/android-sdk-preview-license
+          echo "601085b94cd77f0b54ff86406957099ebe79c4d6" > /usr/local/lib/android/sdk/licenses/android-googletv-license
+          echo "33b6a2b64607f11b759f320ef9dff4ae5c47d97a" > /usr/local/lib/android/sdk/licenses/google-gdk-license
+          echo "e9acab5b5fbb560a72cfaecce8946896ff6bab9d" > /usr/local/lib/android/sdk/licenses/mips-android-sysimage-license
+          echo "24333f8a63b6825ea9c5514f83c2829b004d1fee" >> /usr/local/lib/android/sdk/licenses/android-sdk-license
+      - uses: android-actions/setup-android@v3
+        with:
+          cmdline-tools-version: 11076708
+          accept-android-sdk-licenses: true
+      - name: install-ndk
+        run: yes | sdkmanager "ndk;26.1.10909125"
+      - uses: gradle/actions/setup-gradle@v3
+      - run: chmod +x ./gradlew
+      - name: prepare-emulator-logs
+        run: |
+          rm -rf emulator_logs && mkdir -p emulator_logs
+      - name: collect-system-info
+        run: |
+          mkdir -p diagnostics_out
+          if [ -r /dev/kvm ]; then echo "kvm_available=true" > diagnostics_out/kvm.txt; else echo "kvm_available=false" > diagnostics_out/kvm.txt; fi
+          uname -a > diagnostics_out/uname.txt 2>&1 || true
+          cat /proc/cpuinfo > diagnostics_out/cpuinfo.txt 2>/dev/null || true
+          lsmod | grep kvm > diagnostics_out/kvm_modules.txt 2>/dev/null || true
+          java -version > diagnostics_out/java_version.txt 2>&1 || true
+      - name: unit-tests-debug
+        continue-on-error: true
+        run: |
+          mkdir -p diagnostics_out
+          RUNID=${{ github.run_id }}
+          OUT="diagnostics_out/diagnostics-${RUNID}-unit-debug.txt"
+          ./gradlew :app:testDebugUnitTest --stacktrace 2>&1 | tee "$OUT" || true
+      - name: lint-check
+        continue-on-error: true
+        run: |
+          mkdir -p diagnostics_out
+          RUNID=${{ github.run_id }}
+          OUT="diagnostics_out/diagnostics-${RUNID}-lint.txt"
+          ./gradlew :app:lintDebug --stacktrace 2>&1 | tee "$OUT" || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: diagnostics-data
+          path: diagnostics_out
+          if-no-files-found: warn
+
+  build:
+    name: build
+    runs-on: ubuntu-latest
+    needs: diagnostics
+    if: always()
+    timeout-minutes: 60
+    outputs:
+      apk_exists: ${{ steps.check_apks.outputs.apk_exists }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: ensure-workspace-writable
+        run: |
+          sudo chown -R $(id -u):$(id -g) "$GITHUB_WORKSPACE" || true
+          chmod -R u+w "$GITHUB_WORKSPACE" || true
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+      - name: setup-gradle
+        uses: gradle/actions/setup-gradle@v3
+      - name: Pre-accept Android Licenses
+        run: |
+          mkdir -p $HOME/.android
+          touch $HOME/.android/repositories.cfg
+          sudo mkdir -p /usr/local/lib/android/sdk/licenses
+          sudo chmod 777 /usr/local/lib/android/sdk/licenses
+          echo "24333f8a63b6825ea9c5514f83c2829b004d1fee" > /usr/local/lib/android/sdk/licenses/android-sdk-license
+          echo "84831b9409646a918e30573bab4c9c91346d8abd" > /usr/local/lib/android/sdk/licenses/android-sdk-preview-license
+          echo "601085b94cd77f0b54ff86406957099ebe79c4d6" > /usr/local/lib/android/sdk/licenses/android-googletv-license
+          echo "33b6a2b64607f11b759f320ef9dff4ae5c47d97a" > /usr/local/lib/android/sdk/licenses/google-gdk-license
+          echo "e9acab5b5fbb560a72cfaecce8946896ff6bab9d" > /usr/local/lib/android/sdk/licenses/mips-android-sysimage-license
+          echo "24333f8a63b6825ea9c5514f83c2829b004d1fee" >> /usr/local/lib/android/sdk/licenses/android-sdk-license
+      - uses: android-actions/setup-android@v3
+        with:
+          cmdline-tools-version: 11076708
+          accept-android-sdk-licenses: true
+      - name: install-ndk
+        run: yes | sdkmanager "ndk;26.1.10909125"
+      - run: chmod +x ./gradlew
+      - name: prepare-keystore
+        run: |
+          mkdir -p build_out/apk
+          if [ -n "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" ]; then
+            echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > release.keystore
+          else
+            keytool -genkeypair -v -keystore release.keystore -alias ci_release -storepass android -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=CI,OU=CI,O=CI,L=CI,ST=CI,C=US"
+          fi
+      - name: install-rust-targets-if-needed
+        run: |
+          if [ -f engine-rs/Cargo.toml ] || [ -f glue-jni/Cargo.toml ]; then
+            if command -v rustup >/dev/null 2>&1; then
+              rustup target add x86_64-linux-android aarch64-linux-android || true
+            else
+              echo "rustup_not_found" > build_out/rust_targets_skip.txt || true
+            fi
+          else
+            echo "no_rust_targets_needed" > build_out/rust_targets_skip.txt || true
+          fi
+      - name: assemble-emulator-apk
+        continue-on-error: true
+        run: |
+          ./gradlew clean :app:assembleDebug -PciArch=x86_64 --stacktrace
+          if [ -f app/build/outputs/apk/debug/app-debug.apk ]; then
+            cp app/build/outputs/apk/debug/app-debug.apk build_out/apk/theya-debug-x86_64.apk || true
+          else
+            find app/build/outputs/apk -name "*.apk" -print -quit | xargs -r -I{} cp {} build_out/apk/theya-debug-x86_64.apk || true
+          fi
+      - name: assemble-device-apk
+        continue-on-error: true
+        run: |
+          ./gradlew clean :app:assembleDebug -PciArch=arm64-v8a --stacktrace -x test -x lint
+          if [ -f app/build/outputs/apk/debug/app-debug.apk ]; then
+            cp app/build/outputs/apk/debug/app-debug.apk build_out/apk/theya-debug-arm64-v8a.apk || true
+          else
+            find app/build/outputs/apk -name "*.apk" -print -quit | xargs -r -I{} cp {} build_out/apk/theya-debug-arm64-v8a.apk || true
+          fi
+      - name: dependency-check
+        continue-on-error: true
+        run: |
+          ./gradlew :app:dependencies > build_out/dependency_tree.txt || true
+      - name: check-collected-apks
+        id: check_apks
+        run: |
+          if ls build_out/apk/*.apk 1> /dev/null 2>&1; then
+            echo "apk_exists=true" >> $GITHUB_ENV
+            echo "apk_exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "apk_exists=false" >> $GITHUB_ENV
+            echo "apk_exists=false" >> $GITHUB_OUTPUT
+          fi
+      - name: analyze-artifacts
+        run: |
+          mkdir -p build_out
+          APK_PATH="$(find build_out/apk -name "*.apk" -print -quit || true)"
+          if [ -n "$APK_PATH" ]; then
+            if unzip -l "$APK_PATH" > /dev/null 2>&1; then
+              unzip -l "$APK_PATH" | awk '/lib\//{print $4}' > build_out/native_libs_structure.txt || echo "NO_NATIVE_LIBS" > build_out/native_libs_structure.txt
+            else
+              echo "UNZIP_ERROR" > build_out/native_libs_structure.txt
+            fi
+          else
+            echo "NO_APK_FOR_ANALYSIS" > build_out/native_libs_structure.txt
+          fi
+          MM="$(find app/build -type f -path '*/merged_manifests/*/AndroidManifest.xml' -print -quit || true)"
+          if [ -z "$MM" ]; then MM="$(find app/build -type f -name AndroidManifest.xml -print -quit || true)"; fi
+          if [ -n "$MM" ]; then
+            grep -E "android:exported|provider|authority|permission|uses-permission|launchable-activity" "$MM" | sed -n '1,200p' > build_out/manifest_analysis.txt || true
+          else
+            echo "MANIFEST_NOT_FOUND" > build_out/manifest_analysis.txt
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: build-data
+          path: build_out
+          if-no-files-found: warn
+
+  emulator:
+    name: emulator
+    runs-on: ubuntu-latest
+    needs: build
+    if: always()
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+      - name: Pre-accept Android Licenses
+        run: |
+          mkdir -p $HOME/.android
+          touch $HOME/.android/repositories.cfg
+          sudo mkdir -p /usr/local/lib/android/sdk/licenses
+          sudo chmod 777 /usr/local/lib/android/sdk/licenses
+          echo "24333f8a63b6825ea9c5514f83c2829b004d1fee" > /usr/local/lib/android/sdk/licenses/android-sdk-license
+          echo "84831b9409646a918e30573bab4c9c91346d8abd" > /usr/local/lib/android/sdk/licenses/android-sdk-preview-license
+          echo "601085b94cd77f0b54ff86406957099ebe79c4d6" > /usr/local/lib/android/sdk/licenses/android-googletv-license
+          echo "33b6a2b64607f11b759f320ef9dff4ae5c47d97a" > /usr/local/lib/android/sdk/licenses/google-gdk-license
+          echo "e9acab5b5fbb560a72cfaecce8946896ff6bab9d" > /usr/local/lib/android/sdk/licenses/mips-android-sysimage-license
+          echo "24333f8a63b6825ea9c5514f83c2829b004d1fee" >> /usr/local/lib/android/sdk/licenses/android-sdk-license
+      - uses: android-actions/setup-android@v3
+        with:
+          cmdline-tools-version: 11076708
+          accept-android-sdk-licenses: true
+      - uses: actions/download-artifact@v4
+        with:
+          name: diagnostics-data
+          path: diagnostics_out
+      - uses: actions/download-artifact@v4
+        with:
+          name: build-data
+          path: downloaded_build
+      - name: locate-apk
+        id: locate_apk
+        run: |
+          set -euo pipefail
+          mkdir -p emulator_work
+          if [ -f "downloaded_build/apk/theya-debug-x86_64.apk" ]; then
+            cp "downloaded_build/apk/theya-debug-x86_64.apk" emulator_work/app.apk
+            echo "APK_PATH=emulator_work/app.apk" >> $GITHUB_ENV
+            echo "apk_exists=true" >> $GITHUB_ENV
+          else
+            echo "apk_exists=false" >> $GITHUB_ENV
+            mkdir -p emulator_logs
+            echo "EMULATOR_APK_NOT_FOUND" > emulator_logs/apk_missing.txt
+            exit 1
+          fi
+      - name: ensure-emulator-logs
+        if: always()
+        run: |
+          rm -rf emulator_logs && mkdir -p emulator_logs
+      - name: enable-kvm
+        if: ${{ env.apk_exists == 'true' }}
+        run: |
+          if [ -e /dev/kvm ]; then
+            sudo chmod 666 /dev/kvm || true
+            ls -l /dev/kvm || true
+            echo "kvm_enabled=true" >> $GITHUB_ENV
+          else
+            echo "kvm_enabled=false" >> $GITHUB_ENV
+          fi
+      - name: install-build-tools
+        if: ${{ env.apk_exists == 'true' }}
+        run: |
+          set -euo pipefail
+          ANDROID_HOME=${ANDROID_HOME:-$HOME/Android/Sdk}
+          mkdir -p "$ANDROID_HOME"
+          export ANDROID_HOME
+          echo "ANDROID_HOME=$ANDROID_HOME" >> $GITHUB_ENV
+          echo "${ANDROID_HOME}/cmdline-tools/latest/bin" >> $GITHUB_PATH
+          echo "${ANDROID_HOME}/tools/bin" >> $GITHUB_PATH
+          echo "${ANDROID_HOME}/platform-tools" >> $GITHUB_PATH
+          echo "${ANDROID_HOME}/emulator" >> $GITHUB_PATH
+          echo "${ANDROID_HOME}/build-tools/${ANDROID_BUILD_TOOLS_VERSION}" >> $GITHUB_PATH
+          yes | sdkmanager --install "platform-tools" "build-tools;${ANDROID_BUILD_TOOLS_VERSION}" "platforms;android-${API_LEVEL}" || true
+      - name: make emulator script executable
+        if: ${{ env.apk_exists == 'true' }}
+        run: |
+          chmod +x ./ci/emulator_run.sh || true
+      - name: run-emulator-and-install
+        if: ${{ env.apk_exists == 'true' }}
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ env.API_LEVEL }}
+          target: ${{ env.ANDROID_TARGET }}
+          arch: ${{ env.ANDROID_ARCH }}
+          avd-name: ${{ env.AVD_NAME }}
+          force-avd-creation: true
+          disable-linux-hw-accel: false
+          emulator-options: >
+            -no-window
+            -no-audio
+            -no-boot-anim
+            -gpu swiftshader_indirect
+            -no-snapshot-save
+            -no-metrics
+            -memory 4096
+            -accel on
+          emulator-boot-timeout: ${{ env.EMU_BOOT_TIMEOUT_SEC }}
+          script: ./ci/emulator_run.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: emulator-data
+          path: emulator_logs
+          if-no-files-found: warn
+
+  report:
+    name: final-report
+    runs-on: ubuntu-latest
+    needs: [diagnostics, build, emulator]
+    if: always()
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          path: artifacts
+      - name: generate-strict-report
+        run: |
+          OUT="FULL_STRICT_REPORT.txt"
+          touch "$OUT"
+          echo "=== STRICT CI REPORT ===" >> "$OUT"
+          echo "Timestamp: $(date)" >> "$OUT"
+          echo "Run ID: ${{ github.run_id }}" >> "$OUT"
+          echo "========================" >> "$OUT"
+          echo "" >> "$OUT"
+          echo "[SECTION: CRITICAL FAILURES]" >> "$OUT"
+          if find artifacts -type f -name "boot_error.txt" -print -quit | grep -q .; then
+            echo "CRITICAL: EMULATOR BOOT FAILED" >> "$OUT"
+            find artifacts -type f -name "boot_error.txt" -exec cat {} + >> "$OUT"
+          fi
+          if find artifacts -type f -name "install_error.txt" -print -quit | grep -q .; then
+            echo "CRITICAL: APK INSTALLATION FAILED" >> "$OUT"
+            find artifacts -type f -name "install_error.txt" -exec cat {} + >> "$OUT"
+          fi
+          if find artifacts -type f -name "parse_error.txt" -print -quit | grep -q .; then
+            echo "CRITICAL: PARSE/AAPT ERRORS" >> "$OUT"
+            find artifacts -type f -name "parse_error.txt" -exec cat {} + >> "$OUT"
+          fi
+          if find artifacts -type f -name "runtime_crashes.txt" -exec grep -v "NO_CRASHES_DETECTED" {} + | grep -q .; then
+            echo "CRITICAL: RUNTIME CRASH DETECTED" >> "$OUT"
+            find artifacts -type f -name "runtime_crashes.txt" -exec cat {} + >> "$OUT"
+          else
+            echo "No Runtime Crashes Detected." >> "$OUT"
+          fi
+          echo "" >> "$OUT"
+          echo "[SECTION: BUILD & TEST ERRORS]" >> "$OUT"
+          find artifacts -type f -name "build-*assemble.txt" -exec grep -E "FAILURE|FAILED|Error:" {} + >> "$OUT" || true
+          find artifacts -type f -name "diagnostics-*unit-*.txt" -exec grep -E "FAILED|FAILURE" {} + >> "$OUT" || true
+          echo "" >> "$OUT"
+          echo "[SECTION: LINT ISSUES (Top 100)]" >> "$OUT"
+          find artifacts -type f -name "diagnostics-*lint.txt" -exec grep -E "Error|Warning" {} + | head -n 100 >> "$OUT" || true
+          echo "" >> "$OUT"
+          echo "[SECTION: APK STRUCTURE]" >> "$OUT"
+          find artifacts -type f -name "native_libs_structure.txt" -exec cat {} + >> "$OUT" || true
+          echo "" >> "$OUT"
+          echo "[SECTION: EMULATOR DEBUG LOGS]" >> "$OUT"
+          find artifacts -type f -name "logcat.txt" -exec tail -n 200 {} + >> "$OUT" || true
+          echo "[SECTION: MEMORY USAGE]" >> "$OUT"
+          find artifacts -type f -name "memory_monitor.txt" -exec tail -n 10 {} + >> "$OUT" || true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: FINAL_REPORT
+          path: FULL_STRICT_REPORT.txt
