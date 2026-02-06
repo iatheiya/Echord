@@ -1,0 +1,107 @@
+// Файл: github.udl
+// Контракт UniFFI для GitHub API
+
+namespace github {
+    // --- Ошибки ---
+
+    [error]
+    enum GitHubError {
+        "InvalidPagination",
+        "RequestFailed"
+    };
+// --- Модели (из Reactions.kt) ---
+
+    [record]
+    struct Reactions {
+        string url;
+i32 count;
+        i32 likes;
+        i32 dislikes;
+        i32 laughs;
+        i32 confused;
+        i32 hearts;
+        i32 hoorays;
+        i32 eyes;
+        i32 rockets;
+    };
+// --- Модели (из SimpleUser.kt) ---
+
+    [record]
+    struct SimpleUser {
+        optional<string> name;
+optional<string> email;
+        string login;
+        i32 id;
+        string node_id;
+        string avatar_url;
+        optional<string> gravatar_id;
+        string url;
+        string frontend_url;
+        string followers_url;
+        string following_url;
+string gists_url;
+        string starred_url;
+        string subscriptions_url;
+        string organizations_url;
+        string repos_url;
+        string events_url;
+        string received_events_url;
+        string type;
+        boolean admin;
+    };
+// --- Модели (из Release.kt) ---
+
+    [enum]
+    enum AssetState {
+        "Uploaded",
+        "Open"
+    };
+[record]
+    struct Asset {
+        string url;
+        string download_url;
+        i32 id;
+string node_id;
+        string name;
+        optional<string> label;
+        AssetState state;
+        string content_type;
+        i64 size;
+        i32 downloads;
+        timestamp created_at;
+        timestamp updated_at;
+        optional<SimpleUser> uploader;
+};
+
+    [record]
+    struct Release {
+        i32 id;
+        string node_id;
+string url;
+        string frontend_url;
+        string assets_url;
+        string tag;
+        optional<string> name;
+        optional<string> markdown;
+        boolean draft;
+        boolean pre_release;
+        timestamp created_at;
+        optional<timestamp> published_at;
+SimpleUser author;
+        sequence<Asset> assets;
+        optional<string> html;
+        optional<string> text;
+        optional<string> discussion_url;
+        optional<Reactions> reactions;
+    };
+// --- Запросы (из Releases.kt) ---
+
+    [async]
+    ReleaseList releases(string owner, string repo, i32 page, i32 page_size) raises GitHubError;
+// --- Вспомогательные типы ---
+    // (UniFFI требует, чтобы Vec<T> был обернут в record для FFI)
+    [record]
+    struct ReleaseList {
+        sequence<Release> items;
+};
+};

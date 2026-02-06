@@ -1,0 +1,32 @@
+// Файл: core.udl
+// [РЕФАКТОРИНГ] Общее определение FFI-контрактов для всего core.
+
+namespace core {
+  // --- FFI-Ошибки (Rule 2.5) ---
+  [Error]
+  enum ApiError {
+    "RequestError", // Сетевые ошибки, неверные URL/Headers
+    "ParseError"    // Ошибки парсинга JSON ответов
+  };
+
+  // --- FFI-Структуры для fetch_raw ---
+  
+  record NetworkRequest {
+    url: string;
+    method: string;
+    // Заголовки передаются как JSON-строка (ограничение FFI)
+    headers_json: string?;
+    body: string?;
+  };
+
+  record RawResponse {
+    status_code: i64;
+    body: string;
+  };
+
+  // --- FFI-Функции ---
+  
+  // Универсальная функция для выполнения сырого HTTP-запроса.
+  [Throws(ApiError)]
+  fun fetch_raw(request: NetworkRequest) : RawResponse;
+};

@@ -1,0 +1,31 @@
+// Файл: lrclib.udl
+// Контракт UniFFI для LrcLib
+
+// [РЕФАКТОРИНГ 5.3] Определение ApiError удалено.
+// Мы предполагаем, что система сборки импортирует 'core.udl'
+// и 'ApiError' будет доступен в глобальной области видимости FFI.
+
+namespace lrclib {
+
+// Структура, возвращаемая FFI
+  record Lyrics {
+    string text;
+    boolean synced;
+  };
+// Главный объект API, хранящий HTTP-клиент
+  interface LrcLib {
+    // Конструктор
+    constructor();
+// Главный метод FFI, асинхронный и может выбрасывать ошибку
+    // Использует 'ApiError', определенный в 'core.udl'
+    [Throws=ApiError]
+    async fn best_lyrics(
+        string artist, 
+        string title, 
+        u64 duration_ms, 
+        optional<string> album, 
+        boolean synced
+    ) -> optional<Lyrics>;
+};
+
+};

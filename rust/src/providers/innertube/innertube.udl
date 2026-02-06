@@ -1,0 +1,179 @@
+// [innertube.udl]
+// [AUDITED] Без изменений. FFI-контракт стабилен.
+// ====================================================================
+// ОШИБКИ FFI
+// ====================================================================
+
+#[Error]
+enum InnertubeError {
+    JsonSerializationError { message: String },
+    JsonDeserializationError { message: String },
+    InvalidRequestData { message: String },
+    LogicError { message: String }, 
+    NetworkError { message: String }, 
+    InitializationFailed { message: String },
+}
+
+// ====================================================================
+// ОБЪЕКТ FFI (InnertubeClient)
+// ====================================================================
+
+#[Object]
+interface InnertubeClient {
+  
+    // Конструктор FFI-объекта
+    fun new(api_key: String): Result<InnertubeClient, InnertubeError>
+    
+    // ====================================================================
+    // 2. FFI-МЕТОДЫ (ВЫСОКОУРОВНЕВЫЕ)
+    // 
+====================================================================
+
+    /// [ASYNC] Получает PlayerResponse для videoId/playlistId.
+fun fetch_player(
+        body: PlayerBody,
+        context: Context,
+        user_agent: String
+    ): Result<PlayerResponse, InnertubeError>
+
+    /// [ASYNC] Получает Queue/Playlist Items.
+fun fetch_queue(
+        video_id: String,
+        playlist_id: Optional<String>, 
+        context: Context,
+        user_agent: String
+    ): Result<List<SongItem>, InnertubeError>
+
+    /// [ASYNC] Получает текст песни, выполняя оркестровку /next -> /browse.
+fun fetch_lyrics(
+        video_id: String,
+        context: Context,
+        user_agent: String
+    ): Result<Optional<String>, InnertubeError>
+
+    // ====================================================================
+    // 3. УДАЛЕННЫЕ МЕТОДЫ (ПЕРЕМЕЩЕНЫ В RUST)
+    // ====================================================================
+    
+    // [REMOVED] fun parse_player_response(raw_json: String): Result<PlayerResponse, InnertubeError>
+    // [REMOVED] fun parse_queue_items(raw_json: String): Result<List<SongItem>, InnertubeError>
+    // [REMOVED] fun parse_next_response(raw_json: String): Result<NextResponse, InnertubeError>
+    // [REMOVED] fun parse_browse_response(raw_json: String): Result<BrowseResponse, InnertubeError>
+  
+  // [REMOVED] fun get_player_mask(): String
+    // [REMOVED] fun get_queue_mask(): String
+    // [REMOVED] fun get_next_mask(): String
+    // [REMOVED] fun get_browse_mask(): String
+}
+
+// ====================================================================
+// FFI RECORDS/ENUMS (Без изменений)
+// ====================================================================
+
+#[Enum]
+enum Context {
+    DefaultAndroidMusic,
+    DefaultIOS,
+    DefaultWeb, 
+    DefaultTV,
+}
+
+#[Record]
+interface PlayerBody {
+    video_id: String,
+    playlist_id: Optional<String>,
+    cpn: Optional<String>,
+    signature_timestamp: Optional<String>, 
+}
+
+#[Record]
+interface PlayerResponse {
+    playability_status_status: Optional<String>, 
+    streaming_data_present: Boolean, 
+}
+
+#[Record]
+interface NextResponse {
+    get_browse_id: Optional<String>, 
+    get_video_id: Optional<String>,
+}
+
+#[Record]
+interface BrowseResponse {
+  
+  lyrics_text: Optional<String>, 
+    contents: Optional<SectionListRenderer>, 
+}
+
+#[Record]
+interface ContinuationResponse {
+    continuation: Optional<String>,
+}
+
+#[Record]
+interface SongItem {
+    key: String, 
+    video_id: String,
+    explicit: Boolean,
+    authors: Optional<List<Info>>,
+    info: Info,
+    album: Optional<Info>,
+    duration_text: Optional<String>,
+    thumbnail: Optional<Thumbnail>,
+}
+
+#[Record]
+interface Info {
+    name: Optional<String>,
+    endpoint: Optional<NavigationEndpoint>,
+}
+
+#[Record]
+interface NavigationEndpoint {
+    video_id: Optional<String>,
+    playlist_id: Optional<String>,
+    browse_id: Optional<String>,
+    params: Optional<String>,
+}
+
+#[Record]
+interface Thumbnail {
+    
+url: String,
+    width: Uint32,
+    height: Uint32,
+}
+
+// --- Внутренние структуры для BrowseResponse (SectionList) ---
+
+#[Record]
+interface SectionListRenderer {
+    contents: Optional<List<SectionListRendererContent>>,
+}
+
+#[Record]
+interface SectionListRendererContent {
+    music_description_shelf_renderer: Optional<MusicDescriptionShelfRenderer>,
+    music_shelf_renderer: Optional<MusicShelfRenderer>,
+}
+
+#[Record]
+interface MusicDescriptionShelfRenderer {
+    description: Optional<Runs>,
+    footer: Optional<Runs>,
+}
+
+#[Record]
+interface MusicShelfRenderer {
+    title: Optional<Runs>,
+}
+
+#[Record]
+interface Runs {
+    runs: List<Run>,
+}
+
+#[Record]
+interface Run {
+    text: String,
+}

@@ -1,0 +1,52 @@
+/*
+ * ФАЙЛ: common.udl
+ * (АУДИТ ПРОЙДЕН, контракт расширен)
+ */
+
+// (IMPROVEMENT: Renamed from innertube.udl to utils.udl - утилитарные типы данных)
+// (NEW: Added namespace for clarity)
+namespace common {
+  // Определение контракта для FFI-взаимодействия.
+
+  type SerializableUUID = string;
+  type SerializableUrl = string;
+  type SerializableIso8601Date = string;
+
+  // (NEW: CoreError enum for shared fetch helper per Mandate 2.0.1)
+  // Общая ошибка для всех провайдеров
+  [Error]
+  enum CoreError {
+    // Ошибка сети (reqwest::Error)
+    "Network",
+    // Ошибка парсинга URL (url::ParseError)
+    "UrlParse",
+    // Неверный HTTP-метод (e.g., "INVALID_METHOD")
+    "InvalidMethod",
+    // Ошибка парсинга JSON-строки с заголовками или невалидный заголовок
+    // (FIXED: Теперь это String, а не enum)
+    "InvalidHeaders"
+  };
+
+  // (NEW: Data structures for fetch_raw)
+  dictionary NetworkRequest {
+    string url;
+    // "GET", "POST", "PUT", etc.
+    string method;
+    // Опциональная JSON-строка: "{ \"Header-Name\": \"Header-Value\" }"
+    string? headers_json;
+    // Опциональное тело запроса
+    string? body;
+  };
+
+  dictionary RawResponse {
+    // HTTP Status code (e.g., 200, 404)
+    i64 status_code;
+    // Тело ответа как строка
+    string body;
+  };
+
+  // (NEW: Shared async fetch function per Mandate 2.0.1)
+  // Универсальный хелпер для выполнения HTTP-запросов
+  [Throws=CoreError]
+  async fn fetch_raw(request: NetworkRequest) -> RawResponse;
+};

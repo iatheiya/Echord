@@ -1,0 +1,120 @@
+=== FILE: src/piped/piped.udl ===
+// ФАЙЛ БЕЗ ИЗМЕНЕНИЙ (ЯВЛЯЕТСЯ КОНТРАКТОМ)
+namespace piped {
+
+    // --- Ошибки ---
+
+    [Error]
+    enum PipedError {
+        // Ошибка HTTP-клиента или сети
+        "Request",
+        // Ошибка парсинга JSON ответа
+        "Parse",
+        // Ошибка, возвращенная API (например, неверный логин)
+        "Api",
+        // Ошибка парсинга URL
+        "UrlParse"
+    };
+
+    // --- Модели Данных ---
+
+    [Record]
+    interface Instance {
+        string name;
+        string api_base_url;
+        string locations_formatted;
+        string version;
+        boolean up_to_date;
+        boolean is_cdn;
+        i64 user_count;
+        // Unix timestamp (в секундах)
+        i64 last_checked;
+        boolean has_cache;
+        boolean uses_s3;
+        string image_proxy_base_url;
+        boolean registration_disabled;
+    };
+
+    [Record]
+    interface CreatedPlaylist {
+        // UUID в виде строки
+        string id;
+    };
+
+    [Record]
+    interface PlaylistPreview {
+        // UUID в виде строки
+        string id;
+        string name;
+        string? description;
+        string thumbnail_url;
+        i32 video_count;
+    };
+
+    [Record]
+    interface Playlist {
+        string name;
+        string thumbnail_url;
+        string? description;
+        string? banner_url;
+        i32 video_count;
+        sequence<PlaylistVideo> videos;
+    };
+
+    [Record]
+    interface PlaylistVideo {
+        string url;
+        string title;
+        string thumbnail_url;
+        string uploader_name;
+        string uploader_url; // "url"
+        string uploader_avatar_url;
+        i64 duration_seconds;
+    };
+
+    // --- FFI-Методы для PlaylistVideo ---
+
+    string? video_get_id(PlaylistVideo video); 
+    string? video_get_uploader_id(PlaylistVideo video);
+    i64 video_get_duration_ms(PlaylistVideo video);
+
+    // --- API ---
+
+    // --- Статические (неаутентифицированные) вызовы ---
+
+    sequence<Instance> get_instances() raises PipedError;
+
+    // Async: требует Kotlin-обертки с suspend fun
+    [Throws]
+    Session login(string api_base_url, string username, string password) raises PipedError;
+
+    // --- Объект Сессии (Аутентифицированные вызовы) ---
+
+    [Object]
+    interface Session {
+        string get_api_base_url();
+        string get_token();
+
+        // Async: требует Kotlin-обертки с suspend fun
+        [Throws]
+        sequence<PlaylistPreview> playlist_list() raises PipedError;
+
+        [Throws]
+        CreatedPlaylist playlist_create(string name) raises PipedError;
+
+        [Throws]
+        boolean playlist_rename(string id, string name) raises PipedError;
+
+        [Throws]
+        boolean playlist_delete(string id) raises PipedError;
+
+        [Throws]
+        boolean playlist_add(string id, sequence<string> videos) raises PipedError;
+
+        [Throws]
+        boolean playlist_remove(string id, i32 index) raises PipedError;
+        
+        [Throws]
+        Playlist playlist_songs(string id) raises PipedError;
+    };
+};

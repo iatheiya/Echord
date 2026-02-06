@@ -1,0 +1,16 @@
+// kugou/kugou.udl
+
+namespace kugou {
+    // (Правило 2.5) Публичный FFI-контракт.
+    [Error]
+    enum KuGouError {
+        "NotFound",
+        "NetworkError",
+        "ParsingError",
+        "Base64Error"
+    };
+
+    // (Правило 2.5) Публичный FFI-контракт.
+    [Async]
+    fn lyrics(artist: string, title: string, duration: u64) -> result<string, KuGouError>;
+};

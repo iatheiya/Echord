@@ -1,0 +1,67 @@
+// ------------------------------------
+// Файл: sponsorblock.udl
+// ------------------------------------
+namespace sponsorblock {
+    // ------------------------------------
+    // models.rs
+    // ------------------------------------
+
+    [uniffi::Error]
+    enum SponsorBlockError {
+        "Request",
+        "Serialization",
+        "Network",
+        "InvalidSegmentData",
+        "UrlParsing"
+    };
+
+    [uniffi::Enum]
+    enum Category {
+        "Sponsor",
+        "SelfPromotion",
+        "Interaction",
+        "Intro",
+        "Outro",
+        "Preview",
+        "OfftopicMusic",
+        "Filler",
+        "PoiHighlight"
+    };
+
+    [uniffi::Enum]
+    enum Action {
+        "Skip",
+        "Mute",
+        "Full",
+        "POI",
+        "Chapter"
+    };
+
+    [uniffi::Record]
+    record Segment {
+        start_time: f64;
+        end_time: f64;
+        uuid: string?;
+        category: Category;
+        action: Action;
+        description: string;
+    };
+
+    // ------------------------------------
+    // requests.rs
+    // ------------------------------------
+
+    [uniffi::Object]
+    interface SponsorBlockApi {
+        [constructor]
+        static new() -> SponsorBlockApi;
+
+        [async]
+        fn get_segments(
+            video_id: string,
+            categories: sequence<Category>?,
+            actions: sequence<Action>?,
+            required_segments: sequence<string>?
+        ) -> sequence<Segment>;
+    };
+};

@@ -1,0 +1,12 @@
+use std::env;
+
+fn main() {
+    uniffi::generate_scaffolding("src/providers/translate.udl").unwrap();
+    uniffi::generate_scaffolding("src/providers/sponsorblock.udl").unwrap();
+    uniffi::generate_scaffolding("src/providers/piped.udl").unwrap();
+    uniffi::generate_scaffolding("src/providers/lrclib.udl").unwrap();
+    uniffi::generate_scaffolding("src/providers/kugou.udl").unwrap();
+    uniffi::generate_scaffolding("src/providers/innertube.udl").unwrap();
+    uniffi::generate_scaffolding("src/providers/github.udl").unwrap();
+    println!("cargo:rustc-link-lib=static=unwind");
+}
